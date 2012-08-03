@@ -1,6 +1,6 @@
 #ifndef SNAKE_SNAKE_H_
 #define SNAKE_SNAKE_H_
-#include <vector>
+#include <list>
 #include <utility>
 
 #include "QWidget"
@@ -13,11 +13,11 @@ extern "C" {
 }
 
 class QTimer;
-class vector;
+class list;
 class pair;
 
 namespace snake {
-  using std::vector;
+  using std::list;
   using std::pair;
   using std::make_pair;
 
@@ -30,10 +30,12 @@ namespace snake {
       void start();
       void over();
       void addDrawingRect(int x, int y) {
-        drawing_rects_.pushback(make_pair(x, y));
+        drawing_rects_.push_back(make_pair(x, y));
       }
-      void clearDrewRect(int x, int y) {
-        clearing_rects_.pushback(make_pair(x, y));
+
+      void delFirstRect() {
+        if (drawing_rects_.empty()) return;
+        drawing_rects_.pop_front();
       }
       ~Snake();
 
@@ -42,13 +44,12 @@ namespace snake {
       void keyPressEvent(QKeyEvent *event);
 
     private:
-      static int up_, down_, left_, right_;
+      int up_, down_, left_, right_;
       int update_interval_;
       QTimer *timer_;
       int key_;
       lua_State *L;
-      vector<pair<int, int> > drawing_rects_;
-      vector<pair<int, int> > clearing_rects_;
+      list<pair<int, int> > drawing_rects_;
   };
 }
 
