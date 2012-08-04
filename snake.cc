@@ -86,33 +86,22 @@ namespace snake {
   void Snake::paintEvent(QPaintEvent * /*event*/) {
     static int x = 200, y = 200;
 
+    int direction = -1;
     switch (key_) {
       case Qt::Key_Up:
-      case Qt::Key_W:  y -= 5; break;
+      case Qt::Key_W: y -= 5; direction = up_; break;
       case Qt::Key_Down:
-      case Qt::Key_S: y += 5; break;
+      case Qt::Key_S: y += 5; direction = down_; break;
       case Qt::Key_Left:
-      case Qt::Key_A: x -= 5; break;
+      case Qt::Key_A: x -= 5; direction = left_; break;
       case Qt::Key_Right:
-      case Qt::Key_D: x += 5; break;
+      case Qt::Key_D: x += 5; direction = right_; break;
       default: break;
     }
 
     QPainter p(this);
     p.drawRect(x, y, 10, 10);
 
-    int direction = -1;
-    switch (key_) {
-      case Qt::Key_Up:
-      case Qt::Key_W: direction = up_; break;
-      case Qt::Key_Down:
-      case Qt::Key_S: direction = down_; break;
-      case Qt::Key_Left:
-      case Qt::Key_A: direction = left_; break;
-      case Qt::Key_Right:
-      case Qt::Key_D: direction = right_; break;
-      default: break;
-    }
     lua_getglobal(L, "snake");
     lua_pushstring(L, "move");
     lua_gettable(L, -2);
