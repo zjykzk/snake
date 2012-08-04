@@ -45,6 +45,7 @@ namespace snake {
 
     private:
       int up_, down_, left_, right_;
+      int step_;
       int update_interval_;
       QTimer *timer_;
       int key_;

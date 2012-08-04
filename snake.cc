@@ -41,6 +41,7 @@ static int delRect(lua_State *L) {
 namespace snake {
   Snake::Snake(QWidget *parent) : QWidget(parent), key_(Qt::Key_unknown),
     L(luaL_newstate()) {
+    luaL_openlibs(L); 
     timer_ = new QTimer(this);
     connect(timer_, SIGNAL(timeout()), this, SLOT(update()));
   }
@@ -53,6 +54,7 @@ namespace snake {
       return;
     }
     update_interval_ = getGlobalNumber(L, "update_interval");
+    step_ = getGlobalNumber(L, "step");
 
     lua_register(L, "drawRect", drawRect);
     lua_register(L, "delRect", delRect);
@@ -99,16 +101,6 @@ namespace snake {
     QPainter p(this);
     p.drawRect(x, y, 10, 10);
 
-    for (list<pair<int, int> >::iterator it = drawing_rects_.begin();
-        it != drawing_rects_.end(); ++it) {
-      p.drawRect(it->first, it->second, 10, 10);
-    }
-
-    key_ = Qt::Key_unknown;
-  }
-
-  void Snake::keyPressEvent(QKeyEvent *event) {
-    key_ = event->key();
     int direction = -1;
     switch (key_) {
       case Qt::Key_Up:
@@ -129,6 +121,17 @@ namespace snake {
       QMessageBox::warning(this, tr("error"), tr(lua_tostring(L, -1)));
     }
     lua_pop(L, 1);
+
+    for (list<pair<int, int> >::iterator it = drawing_rects_.begin();
+        it != drawing_rects_.end(); ++it) {
+      p.drawRect(it->first * step_, it->second * step_, step_, step_);
+    }
+
+    key_ = Qt::Key_unknown;
+  }
+
+  void Snake::keyPressEvent(QKeyEvent *event) {
+    key_ = event->key();
   }
 
   Snake::~Snake() {
