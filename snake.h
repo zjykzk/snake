@@ -28,15 +28,10 @@ namespace snake {
       Snake(QWidget *parent=0);
       void loadResources();
       void start();
-      void over();
-      void addDrawingRect(int x, int y) {
-        drawing_rects_.push_back(make_pair(x, y));
-      }
-
-      void delFirstRect() {
-        if (drawing_rects_.empty()) return;
-        drawing_rects_.pop_front();
-      }
+      int over(lua_State *L);;
+      int drawRect(lua_State *L);
+      int delRect(lua_State *L);
+      int drasFreshPoint(lua_State *L);
       ~Snake();
 
     protected:
@@ -44,6 +39,10 @@ namespace snake {
       void keyPressEvent(QKeyEvent *event);
 
     private:
+      static int getGlobalNumber(lua_State *L, const char *name);
+      static int getNumberFromTable(lua_State *L, const char *name);
+      void registerFunction();
+
       int up_, down_, left_, right_;
       int step_;
       int update_interval_;
@@ -51,6 +50,7 @@ namespace snake {
       int key_;
       lua_State *L;
       list<pair<int, int> > drawing_rects_;
+      int fresh_point_x_, fresh_point_y_;
   };
 }
 

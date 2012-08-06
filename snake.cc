@@ -10,32 +10,28 @@
 #include "QMessageBox"
 #include "QObject"
 
-static int getGlobalNumber(lua_State *L, const char *name) {
-  lua_getglobal(L, name);
-  int ans = (int)lua_tonumber(L, -1);
-  lua_pop(L, 1);
-  return ans;
+static int cClosure(lua_State *L) {
+  snake::Snake *canvas = (snake::Snake*)lua_topointer(L, lua_upvalueindex(1));
+  typedef int (*func)(snake::Snake*, lua_State*);
+
+  func f = (func)lua_topointer(L, lua_upvalueindex(2));
+  return f(canvas, L);
 }
 
-static int getNumberFromTable(lua_State *L, const char *name) {
-  lua_pushstring(L, name);
-  lua_gettable(L, -2);
-  int ans = (int) lua_tonumber(L, -1);
-  lua_pop(L, 1);
-  return ans;
+static int drawRectProxy(snake::Snake *canvas, lua_State *L) {
+  return canvas->drawRect(L);
 }
 
-static snake::Snake* snake_obj;
-
-static int drawRect(lua_State *L) {
-  int x = (int) lua_tonumber(L, 1), y = (int) lua_tonumber(L, 2);
-  snake_obj->addDrawingRect(x, y);
-  return 0;
+static int delRectProxy(snake::Snake *canvas, lua_State *L) {
+  return canvas->delRect(L);
 }
 
-static int delRect(lua_State *L) {
-  snake_obj->delFirstRect();
-  return 0;
+static int overProxy(snake::Snake *canvas, lua_State *L) {
+  return canvas->over(L);
+}
+
+static int drawFreshPoint(snake::Snake *canvas, lua_State *L) {
+  return canvas->drasFreshPoint(L);
 }
 
 namespace snake {
@@ -56,8 +52,10 @@ namespace snake {
     update_interval_ = getGlobalNumber(L, "update_interval");
     step_ = getGlobalNumber(L, "step");
 
-    lua_register(L, "drawRect", drawRect);
-    lua_register(L, "delRect", delRect);
+    lua_getglobal(L, "window");
+    setFixedSize(getNumberFromTable(L, "width") * step_,
+        getNumberFromTable(L, "height") * step_);
+    lua_pop(L, 1);
 
     if (luaL_loadfile(L, "res/snake.lua") || lua_pcall(L, 0, 0, 0)) {
       QMessageBox::warning(this, tr("error"), 
@@ -70,37 +68,56 @@ namespace snake {
     down_ = getNumberFromTable(L, "Down");
     left_ = getNumberFromTable(L, "Left");
     right_ = getNumberFromTable(L, "Right");
-
-    QMessageBox::information(this, tr("load successfully"), 
-      tr("loading successfully"));
   }
 
   void Snake::start() {
+    registerFunction();
     loadResources();
     timer_->start(update_interval_);
   }
 
-  void Snake::over() {
+  int Snake::over(lua_State *L) {
+    timer_->stop();
+    QMessageBox::information(this, tr("Snake Over"), tr("Game Over"));
+    return 0;
+  }
+
+  int Snake::drasFreshPoint(lua_State *L) {
+    fresh_point_x_ = (int) lua_tonumber(L, 1);
+    fresh_point_y_ = (int) lua_tonumber(L, 2);
+    return 0;
+  }
+
+  int Snake::getGlobalNumber(lua_State *L, const char *name) {
+    lua_getglobal(L, name);
+    int ans = (int)lua_tonumber(L, -1);
+    lua_pop(L, 1);
+    return ans;
+  }
+
+  int Snake::getNumberFromTable(lua_State *L, const char *name) {
+    lua_pushstring(L, name);
+    lua_gettable(L, -2);
+    int ans = (int) lua_tonumber(L, -1);
+    lua_pop(L, 1);
+    return ans;
   }
 
   void Snake::paintEvent(QPaintEvent * /*event*/) {
-    static int x = 200, y = 200;
-
     int direction = -1;
     switch (key_) {
       case Qt::Key_Up:
-      case Qt::Key_W: y -= 5; direction = up_; break;
+      case Qt::Key_W: direction = up_; break;
       case Qt::Key_Down:
-      case Qt::Key_S: y += 5; direction = down_; break;
+      case Qt::Key_S: direction = down_; break;
       case Qt::Key_Left:
-      case Qt::Key_A: x -= 5; direction = left_; break;
+      case Qt::Key_A: direction = left_; break;
       case Qt::Key_Right:
-      case Qt::Key_D: x += 5; direction = right_; break;
+      case Qt::Key_D: direction = right_; break;
       default: break;
     }
 
     QPainter p(this);
-    p.drawRect(x, y, 10, 10);
 
     lua_getglobal(L, "snake");
     lua_pushstring(L, "move");
@@ -116,11 +133,50 @@ namespace snake {
       p.drawRect(it->first * step_, it->second * step_, step_, step_);
     }
 
+    if (fresh_point_x_ > 0 || fresh_point_y_ > 0)
+      p.drawRect(fresh_point_x_ * step_, fresh_point_y_ * step_, step_, step_);
     key_ = Qt::Key_unknown;
   }
 
   void Snake::keyPressEvent(QKeyEvent *event) {
     key_ = event->key();
+  }
+
+  int Snake::drawRect(lua_State *L) {
+    int x = (int) lua_tonumber(L, 1), y = (int) lua_tonumber(L, 2);
+    drawing_rects_.push_back(make_pair(x, y));
+    return 0;
+  }
+
+  int Snake::delRect(lua_State *L) {
+    if (drawing_rects_.empty()) return 0;
+    drawing_rects_.pop_front();
+    return 0;
+  }
+
+  void Snake::registerFunction() {
+    lua_newtable(L);
+    lua_pushlightuserdata(L, (void *)this);
+    lua_pushlightuserdata(L, (void *)&drawRectProxy);
+    lua_pushcclosure(L, &cClosure, 2);
+    lua_setfield(L, -2, "drawRect");
+
+    lua_pushlightuserdata(L, (void *)this);
+    lua_pushlightuserdata(L, (void *)&delRectProxy);
+    lua_pushcclosure(L, &cClosure, 2);
+    lua_setfield(L, -2, "delRect");
+
+    lua_pushlightuserdata(L, (void *)this);
+    lua_pushlightuserdata(L, (void *)&overProxy);
+    lua_pushcclosure(L, &cClosure, 2);
+    lua_setfield(L, -2, "over");
+
+    lua_pushlightuserdata(L, (void *)this);
+    lua_pushlightuserdata(L, (void *)&drawFreshPoint);
+    lua_pushcclosure(L, &cClosure, 2);
+    lua_setfield(L, -2, "drawFreshPoint");
+
+    lua_setglobal(L, "Canvas");
   }
 
   Snake::~Snake() {
@@ -132,7 +188,7 @@ int main(int argc, char *argv[]) {
   using namespace snake;
 
   QApplication app(argc, argv);
-  snake_obj = new Snake();
+  Snake *snake_obj = new Snake();
   snake_obj->start();
   snake_obj->show();
   return app.exec();
