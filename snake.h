@@ -51,6 +51,7 @@ namespace snake {
       lua_State *L;
       list<pair<int, int> > drawing_rects_;
       int fresh_point_x_, fresh_point_y_;
+      bool is_over_;
   };
 }
 

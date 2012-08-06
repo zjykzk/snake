@@ -88,19 +88,24 @@ snake.move = function (direction)
     return
   end
 
-  if snake.map[x][y] == 1 then Canvas.over() return end
+  if snake.map[x][y] == 1 then
+  	Canvas.over()
+  	return 
+  end
 
   snake.line.pop_front()
   snake.line.push_back(x, y)
 end
 
-local function init()
+function init()
   for w = 1, width do
   	snake.map[w] = {}
   	for h = 1, height do
   		snake.map[w][h] = 0
   	end
   end
+
+  snake.line.tail_, snake.line.head_, snake.line.length_ = nil, nil, 0
 
   for x = 1, 7 do
     snake.line.push_back(x, 1)

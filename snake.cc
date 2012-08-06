@@ -36,7 +36,7 @@ static int drawFreshPoint(snake::Snake *canvas, lua_State *L) {
 
 namespace snake {
   Snake::Snake(QWidget *parent) : QWidget(parent), key_(Qt::Key_unknown),
-    L(luaL_newstate()) {
+    L(luaL_newstate()), is_over_(false) {
     luaL_openlibs(L); 
     timer_ = new QTimer(this);
     connect(timer_, SIGNAL(timeout()), this, SLOT(update()));
@@ -77,8 +77,13 @@ namespace snake {
   }
 
   int Snake::over(lua_State *L) {
-    timer_->stop();
+    is_over_ = true;
+    fresh_point_x_ = 0;
+    drawing_rects_.clear();
     QMessageBox::information(this, tr("Snake Over"), tr("Game Over"));
+    lua_getglobal(L, "init");
+    lua_pcall(L, 0, 0, 0);
+    lua_pop(L, 1);
     return 0;
   }
 
@@ -103,7 +108,9 @@ namespace snake {
     return ans;
   }
 
-  void Snake::paintEvent(QPaintEvent * /*event*/) {
+  void Snake::paintEvent(QPaintEvent *event) {
+    if (is_over_) return;
+
     int direction = -1;
     switch (key_) {
       case Qt::Key_Up:
@@ -117,8 +124,6 @@ namespace snake {
       default: break;
     }
 
-    QPainter p(this);
-
     lua_getglobal(L, "snake");
     lua_pushstring(L, "move");
     lua_gettable(L, -2);
@@ -128,6 +133,7 @@ namespace snake {
     }
     lua_pop(L, 1);
 
+    QPainter p(this);
     for (list<pair<int, int> >::iterator it = drawing_rects_.begin();
         it != drawing_rects_.end(); ++it) {
       p.drawRect(it->first * step_, it->second * step_, step_, step_);
