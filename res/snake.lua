@@ -2,12 +2,18 @@
 
 local width,height = window.width,window.height
 local step = step
+local State = {
+	STOP = 0,
+	RUNING = 1,
+	PAUSE = 2
+}
 
 snake = {
   Up = 0, Down = 1, Left = 2, Right = 3,
   direction = 3,
   map={},
-  freshPoint = { x = 0, y = 0 }
+  freshPoint = { x = 0, y = 0 },
+  state = State.STOP
 }
 
 snake.line = {
@@ -34,9 +40,16 @@ end
 snake.line.pop_front = function ()
   local head_ = snake.line.head_
   local n = head_.next_
+  if not n then
+  	snake.line.head_, n = nil, head_
+  	goto END
+  end
+
   n.prev_ = nil
   head_.next_ = nil
   snake.line.head_ = n
+
+::END::
   Canvas.delRect()
   snake.map[n.x_][n.y_] = 0
   snake.line.length_ = snake.line.length_ - 1
@@ -56,6 +69,8 @@ local function calcFreshPoint()
 end
 
 snake.move = function (direction)
+  if snake.state ~= State.RUNING then return end
+
   sumDir = direction + snake.direction
   if  sumDir == snake.Down + snake.Up or sumDir == snake.Left + snake.Right then
     direction = snake.direction
@@ -89,7 +104,7 @@ snake.move = function (direction)
   end
 
   if snake.map[x][y] == 1 then
-  	Canvas.over()
+  	over()
   	return 
   end
 
@@ -97,7 +112,7 @@ snake.move = function (direction)
   snake.line.push_back(x, y)
 end
 
-function init()
+function start()
   for w = 1, width do
   	snake.map[w] = {}
   	for h = 1, height do
@@ -107,11 +122,27 @@ function init()
 
   snake.line.tail_, snake.line.head_, snake.line.length_ = nil, nil, 0
 
-  for x = 1, 7 do
-    snake.line.push_back(x, 1)
-  end
+  for x = 1, 7 do snake.line.push_back(x, 1) end
+
   snake.freshPoint.x, snake.freshPoint.y = calcFreshPoint()
   Canvas.drawFreshPoint(snake.freshPoint.x, snake.freshPoint.y)
+  snake.state = State.RUNING
 end
 
-init()
+function over()
+  snake.state = State.STOP
+  snake.freshPoint.x, snake.freshPoint.y = 0, 0
+  Canvas.drawFreshPoint(0, 0)
+  repeat
+    snake.line.pop_front()
+  until snake.line.head_== nil
+  Canvas.over()
+end
+
+function pause()
+  snake.state = State.PAUSE
+end
+
+function continue()
+  snake.state = State.RUNING
+end

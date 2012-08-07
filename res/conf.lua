@@ -1,6 +1,6 @@
 update_interval = 500
 step = 10
 window = {
-  width = 60,
-  height = 60
+  width = 30,
+  height = 30
 }

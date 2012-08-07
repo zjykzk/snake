@@ -3,7 +3,7 @@
 #include <list>
 #include <utility>
 
-#include "QWidget"
+#include "QMainWindow"
 
 extern "C" {
 #include "lua.h"
@@ -21,13 +21,11 @@ namespace snake {
   using std::pair;
   using std::make_pair;
 
-  class Snake : public QWidget {
+  class Snake : public QMainWindow {
     Q_OBJECT
 
     public:
       Snake(QWidget *parent=0);
-      void loadResources();
-      void start();
       int over(lua_State *L);;
       int drawRect(lua_State *L);
       int delRect(lua_State *L);
@@ -38,12 +36,20 @@ namespace snake {
       void paintEvent(QPaintEvent *event);
       void keyPressEvent(QKeyEvent *event);
 
+    private slots:
+      void start();
+      void pause();
+      void continue_();
+
     private:
       static int getGlobalNumber(lua_State *L, const char *name);
       static int getNumberFromTable(lua_State *L, const char *name);
       void registerFunction();
+      void loadResources();
+      void createToolBar();
 
       int up_, down_, left_, right_;
+      int base_x_, base_y_;
       int step_;
       int update_interval_;
       QTimer *timer_;
@@ -51,7 +57,6 @@ namespace snake {
       lua_State *L;
       list<pair<int, int> > drawing_rects_;
       int fresh_point_x_, fresh_point_y_;
-      bool is_over_;
   };
 }
 

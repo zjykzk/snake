@@ -8,7 +8,8 @@
 #include "QPoint"
 #include "QKeyEvent"
 #include "QMessageBox"
-#include "QObject"
+#include "QAction"
+#include "QToolBar"
 
 static int cClosure(lua_State *L) {
   snake::Snake *canvas = (snake::Snake*)lua_topointer(L, lua_upvalueindex(1));
@@ -35,11 +36,14 @@ static int drawFreshPoint(snake::Snake *canvas, lua_State *L) {
 }
 
 namespace snake {
-  Snake::Snake(QWidget *parent) : QWidget(parent), key_(Qt::Key_unknown),
-    L(luaL_newstate()), is_over_(false) {
+  Snake::Snake(QWidget *parent) : QMainWindow(parent), key_(Qt::Key_unknown),
+    L(luaL_newstate()), fresh_point_x_(-1) {
     luaL_openlibs(L); 
     timer_ = new QTimer(this);
     connect(timer_, SIGNAL(timeout()), this, SLOT(update()));
+    createToolBar();
+    registerFunction();
+    loadResources();
   }
 
   void Snake::loadResources() {
@@ -70,26 +74,8 @@ namespace snake {
     right_ = getNumberFromTable(L, "Right");
   }
 
-  void Snake::start() {
-    registerFunction();
-    loadResources();
-    timer_->start(update_interval_);
-  }
-
   int Snake::over(lua_State *L) {
-    is_over_ = true;
-    fresh_point_x_ = 0;
-    drawing_rects_.clear();
     QMessageBox::information(this, tr("Snake Over"), tr("Game Over"));
-    lua_getglobal(L, "init");
-    lua_pcall(L, 0, 0, 0);
-    lua_pop(L, 1);
-    return 0;
-  }
-
-  int Snake::drasFreshPoint(lua_State *L) {
-    fresh_point_x_ = (int) lua_tonumber(L, 1);
-    fresh_point_y_ = (int) lua_tonumber(L, 2);
     return 0;
   }
 
@@ -109,8 +95,6 @@ namespace snake {
   }
 
   void Snake::paintEvent(QPaintEvent *event) {
-    if (is_over_) return;
-
     int direction = -1;
     switch (key_) {
       case Qt::Key_Up:
@@ -136,11 +120,14 @@ namespace snake {
     QPainter p(this);
     for (list<pair<int, int> >::iterator it = drawing_rects_.begin();
         it != drawing_rects_.end(); ++it) {
-      p.drawRect(it->first * step_, it->second * step_, step_, step_);
+      p.drawRect(base_x_ + it->first * step_, base_y_ + it->second * step_,
+          step_, step_);
     }
 
-    if (fresh_point_x_ > 0 || fresh_point_y_ > 0)
-      p.drawRect(fresh_point_x_ * step_, fresh_point_y_ * step_, step_, step_);
+    if (fresh_point_x_ >= 0 && fresh_point_y_ >= 0) {
+      p.drawRect(base_x_ + fresh_point_x_ * step_, base_y_ + fresh_point_y_ * step_,
+          step_, step_);
+    }
     key_ = Qt::Key_unknown;
   }
 
@@ -149,7 +136,7 @@ namespace snake {
   }
 
   int Snake::drawRect(lua_State *L) {
-    int x = (int) lua_tonumber(L, 1), y = (int) lua_tonumber(L, 2);
+    int x = (int) (lua_tonumber(L, 1) - 1), y = (int) (lua_tonumber(L, 2) - 1);
     drawing_rects_.push_back(make_pair(x, y));
     return 0;
   }
@@ -157,6 +144,12 @@ namespace snake {
   int Snake::delRect(lua_State *L) {
     if (drawing_rects_.empty()) return 0;
     drawing_rects_.pop_front();
+    return 0;
+  }
+
+  int Snake::drasFreshPoint(lua_State *L) {
+    fresh_point_x_ = (int) (lua_tonumber(L, 1) - 1);
+    fresh_point_y_ = (int) (lua_tonumber(L, 2) - 1);
     return 0;
   }
 
@@ -185,6 +178,46 @@ namespace snake {
     lua_setglobal(L, "Canvas");
   }
 
+  void Snake::pause() {
+    lua_getglobal(L, "pause");
+    if (lua_pcall(L, 0, 0, 0))
+      QMessageBox::warning(this, tr("error"), tr(lua_tostring(L, -1)));
+    lua_pop(L, 1);
+  }
+
+  void Snake::continue_() {
+    lua_getglobal(L, "continue");
+    if (lua_pcall(L, 0, 0, 0))
+      QMessageBox::warning(this, tr("error"), tr(lua_tostring(L, -1)));
+    lua_pop(L, 1);
+  }
+
+  void Snake::start() {
+    timer_->start(update_interval_);
+    lua_getglobal(L, "start");
+    if (lua_pcall(L, 0, 0, 0))
+      QMessageBox::warning(this, tr("error"), tr(lua_tostring(L, -1)));
+  }
+
+  void Snake::createToolBar() {
+    QAction *start_action = new QAction(tr("&start"), this);
+    connect(start_action, SIGNAL(triggered()), this, SLOT(start()));
+
+    QAction *pause_action = new QAction(tr("&pause"), this);
+    connect(pause_action, SIGNAL(triggered()), this, SLOT(pause()));
+
+    QAction *cont_action = new QAction(tr("&continue"), this);
+    connect(cont_action, SIGNAL(triggered()), this, SLOT(continue_()));
+
+    QToolBar *tool_bar = addToolBar(tr("actions"));
+    tool_bar->addAction(start_action);
+    tool_bar->addAction(pause_action);
+    tool_bar->addAction(cont_action);
+
+    base_x_ = 0;
+    base_y_ = tool_bar->height();
+  }
+
   Snake::~Snake() {
     lua_close(L);
   }
@@ -195,7 +228,6 @@ int main(int argc, char *argv[]) {
 
   QApplication app(argc, argv);
   Snake *snake_obj = new Snake();
-  snake_obj->start();
   snake_obj->show();
   return app.exec();
 }
